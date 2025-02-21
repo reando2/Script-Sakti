@@ -1,0 +1,41 @@
+#!/bin/bash
+
+openssl genrsa -out Root.key 2048
+openssl req -x509 -new -nodes -key Root.key -sha256 -days 1024 -out Root.crt
+
+#Extensions
+touch subca.conf
+cat <<EOF > subca.conf
+[req]
+extensions = v3_subca
+req_extensions = v3_subca
+
+[v3_subca]
+authorityKeyIdentifier = keyid:always,issuer
+basicConstraints = critical, CA:true, pathlen:0
+keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+EOF
+
+#CSR dan VERIFY
+openssl req -new -nodes -out Intermediate.csr -newkey rsa:2048 -sha256 -keyout Intermediate.key
+openssl x509 -req -extensions v3_subca -extfile subca.conf -in Intermediate.csr -CA Root.crt -CAkey Root.key -CAcreateserial -sha256 -days 1024 -out Intermediate.crt
+openssl verify -CAfile Root.crt Intermediate.crt
+
+#v3.ext
+touch v3.ext
+cat <<EOF > v3.ext
+authorityKeyIdentifier = keyid,issuer
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = *.lks-17.net.id
+EOF
+
+#CSR
+openssl req -new -nodes -out www.csr -newkey rsa:2048 -sha256 -keyout www.key
+openssl req -new -nodes -out mail.csr -newkey rsa:2048 -sha256 -keyout mail.key
+openssl x509 -req -in www.csr -CA Intermediate.crt -CAkey Intermediate.key -CAcreateserial -out www.crt -days 1024 -sha256 -extfile v3.ext
+openssl x509 -req -in mail.csr -CA Intermediate.crt -CAkey Intermediate.key -CAcreateserial -out mail.crt -days 1024 -sha256 -extfile v3.ext
+openssl verify -CAfile Root.crt -untrusted Intermediate.crt www.crt mail.crt
