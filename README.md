@@ -1,2 +1,3 @@
-Kuntul Kuntul,
-Script SSL Secure
+SECURE LOCAL SSL VIA OPENSSL 
+
+BY Rn$
